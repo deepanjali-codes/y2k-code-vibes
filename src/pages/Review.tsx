@@ -5,9 +5,11 @@ import { AsciiBox } from "@/components/AsciiBox";
 import { CodeEditor } from "@/components/CodeEditor";
 import { ReviewOutput } from "@/components/ReviewOutput";
 import { OllamaStatus } from "@/components/OllamaStatus";
+import { BackgroundTextRain } from "@/components/BackgroundTextRain";
 import { reviewCode, detectLanguage, SupportedLanguage, chunkCode } from "@/lib/ollama";
 import { supabase } from "@/lib/supabaseClient";
 import { useAuth } from "@/hooks/useAuth";
+import { playReviewChime } from "@/lib/sounds";
 import { motion } from "framer-motion";
 
 export default function ReviewPage() {
@@ -51,16 +53,18 @@ export default function ReviewPage() {
 
       // Save to history
       if (user) {
-        await supabase.from("reviews").insert({
-          user_id: user.id,
-          code: code.slice(0, 10000),
-          language: detectedLang,
-          review: fullReview,
-          score,
-          input_type: "text",
-        });
-      }
-    } catch (err: any) {
+          await supabase.from("reviews").insert({
+            user_id: user.id,
+            code: code.slice(0, 10000),
+            language: detectedLang,
+            review: fullReview,
+            score,
+            input_type: "text",
+          });
+        }
+
+      playReviewChime();
+      } catch (err: any) {
       setReview(`\n✖ ERROR: ${err.message}\n\nMake sure Ollama is running at localhost:11434\nand the model "${model}" is available.\n\nTry: ollama run ${model}`);
     } finally {
       setIsLoading(false);
@@ -68,16 +72,17 @@ export default function ReviewPage() {
   }, [code, language, model, user]);
 
   return (
-    <div className="min-h-screen bg-background">
+    <div className="min-h-screen bg-background relative">
+      <BackgroundTextRain />
       <TerminalHeader />
 
-      <div className="container max-w-4xl mx-auto p-4 pt-6">
+      <div className="container max-w-4xl mx-auto p-4 pt-6 relative z-10">
         <motion.div
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           className="mb-6"
         >
-          <AsciiBox title="AI CODE REVIEW TERMINAL" />
+          <AsciiBox title="CODELENS // AI CODE REVIEWER" />
         </motion.div>
 
         <div className="flex flex-col gap-4">

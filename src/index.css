@@ -169,4 +169,47 @@
     backdrop-filter: blur(16px);
     -webkit-backdrop-filter: blur(16px);
   }
+
+  .glitch-hover {
+    position: relative;
+  }
+  .glitch-hover:hover {
+    animation: glitch 0.3s ease-in-out;
+  }
+  .glitch-hover::before,
+  .glitch-hover::after {
+    content: attr(data-text);
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    overflow: hidden;
+    opacity: 0;
+    pointer-events: none;
+  }
+  .glitch-hover:hover::before {
+    opacity: 0.8;
+    color: hsl(var(--neon-pink));
+    animation: glitch-clip-1 0.3s steps(2) infinite;
+  }
+  .glitch-hover:hover::after {
+    opacity: 0.8;
+    color: hsl(var(--neon-cyan));
+    animation: glitch-clip-2 0.3s steps(2) infinite;
+  }
+
+  @keyframes glitch-clip-1 {
+    0% { clip-path: inset(20% 0 60% 0); transform: translate(-2px, -1px); }
+    50% { clip-path: inset(50% 0 20% 0); transform: translate(2px, 1px); }
+    100% { clip-path: inset(10% 0 70% 0); transform: translate(-1px, 2px); }
+  }
+  @keyframes glitch-clip-2 {
+    0% { clip-path: inset(60% 0 10% 0); transform: translate(2px, 1px); }
+    50% { clip-path: inset(20% 0 50% 0); transform: translate(-2px, -1px); }
+    100% { clip-path: inset(70% 0 10% 0); transform: translate(1px, -2px); }
+  }
 }
