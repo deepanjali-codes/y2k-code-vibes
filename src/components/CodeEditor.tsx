@@ -3,6 +3,7 @@ import { Upload, FileCode, Image, FolderOpen, FileArchive } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { processFiles, processImageOCR } from "@/lib/fileProcessor";
 import { detectLanguage, SupportedLanguage } from "@/lib/ollama";
+import { playTypingClick } from "@/lib/sounds";
 import { motion } from "framer-motion";
 
 const LANGUAGES: SupportedLanguage[] = [
@@ -135,7 +136,10 @@ export function CodeEditor({ code, setCode, language, setLanguage, onReview, isL
         </div>
         <textarea
           value={code}
-          onChange={(e) => setCode(e.target.value)}
+          onChange={(e) => {
+            setCode(e.target.value);
+            playTypingClick();
+          }}
           placeholder={`// Paste your code here or drag & drop files...\n// Supports: files, folders, ZIP archives, screenshots (OCR)\n\nfunction example() {\n  console.log("Hello, world!");\n}`}
           className="w-full h-64 bg-background p-4 font-mono text-sm text-foreground resize-none focus:outline-none placeholder:text-muted-foreground/50"
           spellCheck={false}

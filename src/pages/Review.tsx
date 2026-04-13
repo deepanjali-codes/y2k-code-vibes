@@ -76,7 +76,7 @@ export default function ReviewPage() {
       <BackgroundTextRain />
       <TerminalHeader />
 
-      <div className="container max-w-4xl mx-auto p-4 pt-6">
+      <div className="container max-w-4xl mx-auto p-4 pt-6 relative z-10">
         <motion.div
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}

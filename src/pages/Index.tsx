@@ -8,7 +8,7 @@ export default function Index() {
   if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-background">
-        <span className="font-mono text-sm text-muted-foreground animate-blink">▊ INITIALIZING...</span>
+        <span className="font-mono text-sm text-muted-foreground animate-blink">▊ CODELENS INITIALIZING...</span>
       </div>
     );
   }

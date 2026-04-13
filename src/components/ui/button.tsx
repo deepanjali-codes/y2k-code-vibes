@@ -15,8 +15,8 @@ const buttonVariants = cva(
         secondary: "bg-secondary text-secondary-foreground hover:bg-secondary/80",
         ghost: "hover:bg-accent hover:text-accent-foreground",
         link: "text-primary underline-offset-4 hover:underline",
-        neon: "bg-primary text-primary-foreground font-mono glow-green hover:opacity-90 border border-primary/50 uppercase tracking-wider",
-        terminal: "bg-muted text-foreground font-mono border border-border hover:border-primary/50 uppercase tracking-wider",
+        neon: "bg-primary text-primary-foreground font-mono glow-green hover:opacity-90 border border-primary/50 uppercase tracking-wider glitch-hover",
+        terminal: "bg-muted text-foreground font-mono border border-border hover:border-primary/50 uppercase tracking-wider glitch-hover",
       },
       size: {
         default: "h-10 px-4 py-2",
