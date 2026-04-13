@@ -1,4 +1,4 @@
-import { useCallback, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { Upload, FileCode, Image, FolderOpen, FileArchive } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { processFiles, processImageOCR } from "@/lib/fileProcessor";
@@ -25,6 +25,21 @@ export function CodeEditor({ code, setCode, language, setLanguage, onReview, isL
   const imageInputRef = useRef<HTMLInputElement>(null);
   const [dragOver, setDragOver] = useState(false);
   const [processing, setProcessing] = useState(false);
+  const [userPickedLang, setUserPickedLang] = useState(false);
+  const detectTimerRef = useRef<ReturnType<typeof setTimeout>>();
+
+  // Debounced auto-detect on code change (only if user hasn't manually picked a language)
+  useEffect(() => {
+    if (userPickedLang) return;
+    clearTimeout(detectTimerRef.current);
+    detectTimerRef.current = setTimeout(() => {
+      if (code.trim().length > 20) {
+        const detected = detectLanguage(code);
+        setLanguage(detected);
+      }
+    }, 500);
+    return () => clearTimeout(detectTimerRef.current);
+  }, [code, userPickedLang, setLanguage]);
 
   const handleFiles = useCallback(async (files: File[]) => {
     setProcessing(true);
@@ -79,7 +94,11 @@ export function CodeEditor({ code, setCode, language, setLanguage, onReview, isL
       <div className="flex flex-wrap items-center gap-2">
         <select
           value={language}
-          onChange={(e) => setLanguage(e.target.value as SupportedLanguage)}
+          onChange={(e) => {
+            const val = e.target.value as SupportedLanguage;
+            setLanguage(val);
+            setUserPickedLang(!!val);
+          }}
           className="bg-muted border border-border rounded px-3 py-1.5 text-xs font-mono text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
         >
           <option value="">AUTO-DETECT</option>
