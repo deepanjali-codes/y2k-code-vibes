@@ -36,27 +36,77 @@ export function detectLanguage(code: string, filename?: string): SupportedLangua
   if (filename) {
     const ext = filename.split(".").pop()?.toLowerCase();
     const extMap: Record<string, SupportedLanguage> = {
-      js: "javascript", jsx: "javascript", mjs: "javascript",
-      ts: "typescript", tsx: "typescript",
-      py: "python", java: "java", c: "c", h: "c",
-      cpp: "cpp", cc: "cpp", cxx: "cpp", hpp: "cpp",
+      js: "javascript", jsx: "javascript", mjs: "javascript", cjs: "javascript",
+      ts: "typescript", tsx: "typescript", mts: "typescript",
+      py: "python", pyw: "python", pyi: "python",
+      java: "java", kt: "java",
+      c: "c", h: "c",
+      cpp: "cpp", cc: "cpp", cxx: "cpp", hpp: "cpp", hxx: "cpp",
       go: "go", rs: "rust", php: "php", sql: "sql",
-      sh: "bash", bash: "bash", html: "html", htm: "html",
-      css: "css", json: "json", yml: "yaml", yaml: "yaml",
+      sh: "bash", bash: "bash", zsh: "bash",
+      html: "html", htm: "html", svg: "html",
+      css: "css", scss: "css", sass: "css", less: "css",
+      json: "json", jsonc: "json",
+      yml: "yaml", yaml: "yaml",
     };
     if (ext && extMap[ext]) return extMap[ext];
   }
-  // Simple heuristics
-  if (code.includes("def ") && code.includes(":")) return "python";
-  if (code.includes("fn ") && code.includes("->")) return "rust";
-  if (code.includes("func ") && code.includes("package ")) return "go";
-  if (code.includes("<?php")) return "php";
-  if (code.includes("public static void main")) return "java";
-  if (code.includes("#include")) return "c";
-  if (code.includes("SELECT ") || code.includes("INSERT ")) return "sql";
-  if (code.includes("<!DOCTYPE") || code.includes("<html")) return "html";
-  if (code.includes("import ") && code.includes("from ")) return "typescript";
-  if (code.includes("const ") || code.includes("let ") || code.includes("function ")) return "javascript";
+
+  const trimmed = code.trim();
+  if (!trimmed) return "javascript";
+
+  // Definitive single-token matches (order matters — most specific first)
+  if (trimmed.startsWith("<?php") || trimmed.includes("<?php")) return "php";
+  if (trimmed.startsWith("#!/bin/bash") || trimmed.startsWith("#!/bin/sh") || trimmed.startsWith("#!/usr/bin/env bash")) return "bash";
+  if (trimmed.startsWith("<!DOCTYPE") || trimmed.startsWith("<html") || (trimmed.startsWith("<") && trimmed.includes("</") && /<[a-zA-Z][^>]*>/.test(trimmed))) return "html";
+  if (/^\s*\{[\s\S]*\}\s*$/.test(trimmed) && !trimmed.includes("=")) {
+    try { JSON.parse(trimmed); return "json"; } catch {}
+  }
+  if (/^---\s*\n/.test(trimmed) || /^[a-zA-Z_]+\s*:\s*.+/m.test(trimmed) && !trimmed.includes("{") && !trimmed.includes("(")) return "yaml";
+
+  // SQL — strong keywords
+  if (/\b(SELECT|INSERT\s+INTO|UPDATE\s+\w+\s+SET|DELETE\s+FROM|CREATE\s+TABLE|ALTER\s+TABLE|DROP\s+TABLE)\b/i.test(trimmed)) return "sql";
+
+  // CSS — selectors and properties
+  if (/[.#@][a-zA-Z][\w-]*\s*\{/.test(trimmed) || /\b(margin|padding|display|font-size|background|color)\s*:/.test(trimmed)) return "css";
+
+  // Rust — strong indicators
+  if (/\bfn\s+\w+\s*(<[^>]+>)?\s*\(/.test(trimmed) && (trimmed.includes("->") || trimmed.includes("let mut ") || trimmed.includes("impl ") || trimmed.includes("use std::"))) return "rust";
+  if (trimmed.includes("println!") || trimmed.includes("vec!") || /\blet\s+mut\b/.test(trimmed)) return "rust";
+
+  // Go — package + func
+  if (/\bpackage\s+\w+/.test(trimmed) && /\bfunc\s+/.test(trimmed)) return "go";
+  if (trimmed.includes("fmt.Println") || trimmed.includes("func main()")) return "go";
+
+  // Java — class with public/private
+  if (/\b(public|private|protected)\s+(static\s+)?(void|int|String|class)\b/.test(trimmed)) return "java";
+  if (trimmed.includes("System.out.println")) return "java";
+
+  // Python — def/class with colon, import without from braces, or shebang
+  if (/\bdef\s+\w+\s*\(.*\)\s*(->\s*\w+\s*)?:/.test(trimmed)) return "python";
+  if (/\bclass\s+\w+.*:\s*$/.test(trimmed.split("\n")[0] || "")) return "python";
+  if (/^\s*(import\s+\w+|from\s+\w+\s+import)\b/m.test(trimmed) && !trimmed.includes("require(") && !trimmed.includes("{")) return "python";
+  if (trimmed.includes("print(") && !trimmed.includes("console.") && !trimmed.includes("println")) return "python";
+
+  // C/C++ — preprocessor directives
+  if (/^#include\s*[<"]/.test(trimmed)) {
+    if (trimmed.includes("iostream") || trimmed.includes("std::") || trimmed.includes("cout") || trimmed.includes("class ")) return "cpp";
+    return "c";
+  }
+  if (trimmed.includes("std::") || trimmed.includes("cout") || trimmed.includes("nullptr")) return "cpp";
+  if (trimmed.includes("printf(") || trimmed.includes("malloc(") || trimmed.includes("int main(")) return "c";
+
+  // Bash — commands and syntax
+  if (/\b(echo|export|source|chmod|grep|awk|sed|curl|wget)\b/.test(trimmed) && !trimmed.includes("import")) return "bash";
+  if (/\bif\s+\[/.test(trimmed) || /\bfor\s+\w+\s+in\b/.test(trimmed)) return "bash";
+
+  // TypeScript vs JavaScript
+  const hasTS = /\b(interface\s+\w+|type\s+\w+\s*=|:\s*(string|number|boolean|void|any|unknown|never)\b|<[A-Z]\w*>|as\s+\w+)/.test(trimmed);
+  if (hasTS) return "typescript";
+
+  // JavaScript fallback — common patterns
+  if (/\b(const|let|var|function|=>|require\(|module\.exports|console\.)\b/.test(trimmed)) return "javascript";
+
   return "javascript";
 }
 
