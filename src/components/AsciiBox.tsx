@@ -16,7 +16,7 @@ export function AsciiBox({ title, children, className = "" }: AsciiBoxProps) {
 
   return (
     <div className={`font-mono text-sm ${className}`}>
-      <pre className="text-primary text-glow-green leading-tight">
+      <pre className="text-primary text-glow-green leading-tight select-none">
         {top}
         {"\n"}
         {mid}

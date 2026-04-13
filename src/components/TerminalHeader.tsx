@@ -20,7 +20,7 @@ export function TerminalHeader() {
         <Link to="/" className="flex items-center gap-2 group">
           <Terminal className="h-5 w-5 text-primary" />
           <span className="font-mono text-sm font-bold tracking-wider text-primary text-glow-green">
-            AI_REVIEWER
+            CODELENS
           </span>
           <span className="text-xs text-muted-foreground font-mono">v2.0</span>
         </Link>
