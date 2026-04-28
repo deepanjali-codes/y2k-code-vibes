@@ -17,9 +17,10 @@ interface CodeEditorProps {
   setLanguage: (lang: SupportedLanguage) => void;
   onReview: () => void;
   isLoading: boolean;
+  model: string;
 }
 
-export function CodeEditor({ code, setCode, language, setLanguage, onReview, isLoading }: CodeEditorProps) {
+export function CodeEditor({ code, setCode, language, setLanguage, onReview, isLoading, model }: CodeEditorProps) {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const folderInputRef = useRef<HTMLInputElement>(null);
   const imageInputRef = useRef<HTMLInputElement>(null);
@@ -170,13 +171,16 @@ export function CodeEditor({ code, setCode, language, setLanguage, onReview, isL
         variant="neon"
         size="lg"
         onClick={onReview}
-        disabled={isLoading || !code.trim()}
+        disabled={isLoading || !code.trim() || !model}
         className="w-full text-sm"
+        title={!model ? "Select an Ollama model first" : ""}
       >
         {isLoading ? (
           <span className="flex items-center gap-2">
             <span className="animate-blink">▊</span> ANALYZING CODE...
           </span>
+        ) : !model ? (
+          "⚠ NO MODEL SELECTED — CHECK OLLAMA CONNECTION"
         ) : (
           "▶ RUN CODE REVIEW"
         )}

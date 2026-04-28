@@ -43,7 +43,7 @@ const App = () => (
         <TooltipProvider>
           <Toaster />
           <Sonner />
-          <BrowserRouter>
+          <BrowserRouter future={{ v7_relativeSplatPath: true }}>
             <Routes>
               <Route path="/" element={<ProtectedRoute><ReviewPage /></ProtectedRoute>} />
               <Route path="/history" element={<ProtectedRoute><HistoryPage /></ProtectedRoute>} />

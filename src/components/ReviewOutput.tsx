@@ -105,9 +105,23 @@ export function ReviewOutput({ review, isStreaming }: ReviewOutputProps) {
   if (!review && !isStreaming) return null;
 
   const handleCopy = async () => {
-    await navigator.clipboard.writeText(review);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 2000);
+    try {
+      await navigator.clipboard.writeText(review);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    } catch {
+      // Fallback: select text in a temporary textarea
+      const el = document.createElement("textarea");
+      el.value = review;
+      el.style.position = "fixed";
+      el.style.opacity = "0";
+      document.body.appendChild(el);
+      el.select();
+      document.execCommand("copy");
+      document.body.removeChild(el);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    }
   };
 
   const handleDownloadTxt = () => {

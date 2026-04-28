@@ -1,4 +1,8 @@
-const OLLAMA_URL = "http://localhost:11434";
+// Read Ollama URL from environment variable, fallback to default localhost
+const OLLAMA_URL = import.meta.env.VITE_OLLAMA_URL || "http://localhost:11434";
+
+// Default model from env (used as initial preference when auto-selecting)
+export const DEFAULT_MODEL = import.meta.env.VITE_OLLAMA_DEFAULT_MODEL || "deepseek-coder";
 
 export interface OllamaResponse {
   model: string;
@@ -60,7 +64,7 @@ export function detectLanguage(code: string, filename?: string): SupportedLangua
   if (trimmed.startsWith("#!/bin/bash") || trimmed.startsWith("#!/bin/sh") || trimmed.startsWith("#!/usr/bin/env bash")) return "bash";
   if (trimmed.startsWith("<!DOCTYPE") || trimmed.startsWith("<html") || (trimmed.startsWith("<") && trimmed.includes("</") && /<[a-zA-Z][^>]*>/.test(trimmed))) return "html";
   if (/^\s*\{[\s\S]*\}\s*$/.test(trimmed) && !trimmed.includes("=")) {
-    try { JSON.parse(trimmed); return "json"; } catch {}
+    try { JSON.parse(trimmed); return "json"; } catch { /* not JSON */ }
   }
   if (/^---\s*\n/.test(trimmed) || /^[a-zA-Z_]+\s*:\s*.+/m.test(trimmed) && !trimmed.includes("{") && !trimmed.includes("(")) return "yaml";
 
@@ -153,7 +157,7 @@ ${code}
 export async function reviewCode(
   code: string,
   language: string,
-  model: string = "deepseek-coder",
+  model: string = DEFAULT_MODEL,
   onToken?: (token: string) => void,
 ): Promise<string> {
   const prompt = buildPrompt(code, language);
@@ -169,7 +173,10 @@ export async function reviewCode(
   });
 
   if (!res.ok) {
-    throw new Error(`Ollama error: ${res.status} ${res.statusText}`);
+    const errorBody = await res.text().catch(() => "");
+    throw new Error(
+      `Ollama error: ${res.status} ${res.statusText}${errorBody ? ` — ${errorBody}` : ""}`
+    );
   }
 
   const reader = res.body?.getReader();
@@ -188,7 +195,7 @@ export async function reviewCode(
         const parsed: OllamaResponse = JSON.parse(line);
         full += parsed.response;
         onToken?.(parsed.response);
-      } catch { /* skip malformed */ }
+      } catch { /* skip malformed lines */ }
     }
   }
 

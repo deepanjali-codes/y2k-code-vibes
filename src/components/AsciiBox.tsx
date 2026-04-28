@@ -1,3 +1,5 @@
+import React from "react";
+
 interface AsciiBoxProps {
   title: string;
   children?: React.ReactNode;
