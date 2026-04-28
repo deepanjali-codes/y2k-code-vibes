@@ -28,15 +28,16 @@ export default function HistoryPage() {
   useEffect(() => {
     if (!user) return;
     loadHistory();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user]);
 
   const loadHistory = async () => {
     setLoading(true);
     const { data } = await supabase
       .from("reviews")
-      .select("*")
       .eq("user_id", user!.id)
-      .order("created_at", { ascending: false });
+      .order("created_at", { ascending: false })
+      .select("*");
     setReviews(data || []);
     setLoading(false);
   };
