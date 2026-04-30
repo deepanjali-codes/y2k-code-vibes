@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { supabase } from "@/lib/supabaseClient";
-import { useAuth } from "@/hooks/useAuth";
+
 import { TerminalHeader } from "@/components/TerminalHeader";
 import { AsciiBox } from "@/components/AsciiBox";
 import { Button } from "@/components/ui/button";
@@ -19,23 +19,20 @@ interface ReviewRecord {
 }
 
 export default function HistoryPage() {
-  const { user } = useAuth();
   const navigate = useNavigate();
   const [reviews, setReviews] = useState<ReviewRecord[]>([]);
   const [loading, setLoading] = useState(true);
   const [expanded, setExpanded] = useState<string | null>(null);
 
   useEffect(() => {
-    if (!user) return;
     loadHistory();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [user]);
+  }, []);
 
   const loadHistory = async () => {
     setLoading(true);
     const { data } = await supabase
       .from("reviews")
-      .eq("user_id", user!.id)
       .order("created_at", { ascending: false })
       .select("*");
     setReviews(data || []);

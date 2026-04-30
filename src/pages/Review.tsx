@@ -9,13 +9,13 @@ import { BackgroundTextRain } from "@/components/BackgroundTextRain";
 import { detectLanguage, SupportedLanguage, chunkCode } from "@/lib/ollama";
 import { reviewCodeUnified, type AIProvider } from "@/lib/aiProvider";
 import { supabase } from "@/lib/supabaseClient";
-import { useAuth } from "@/hooks/useAuth";
+
 import { playReviewChime } from "@/lib/sounds";
 import { motion } from "framer-motion";
 
 export default function ReviewPage() {
   const location = useLocation();
-  const { user } = useAuth();
+
   const initState = location.state as { code?: string; language?: string } | null;
 
   const [code, setCode] = useState(initState?.code || "");
@@ -56,16 +56,13 @@ export default function ReviewPage() {
       const score = scoreMatch ? parseFloat(scoreMatch[1]) : null;
 
       // Save to history
-      if (user) {
-        await supabase.from("reviews").insert({
-          user_id: user.id,
-          code: code.slice(0, 10000),
-          language: detectedLang,
-          review: fullReview,
-          score,
-          input_type: "text",
-        });
-      }
+      await supabase.from("reviews").insert({
+        code: code.slice(0, 10000),
+        language: detectedLang,
+        review: fullReview,
+        score,
+        input_type: "text",
+      });
 
       playReviewChime();
     } catch (err) {
@@ -77,7 +74,7 @@ export default function ReviewPage() {
     } finally {
       setIsLoading(false);
     }
-  }, [code, language, model, provider, user]);
+  }, [code, language, model, provider]);
 
   return (
     <div className="min-h-screen bg-background relative">

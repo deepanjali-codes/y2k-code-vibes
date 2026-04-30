@@ -1,0 +1,800 @@
+ <!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>AI Code Reviewer</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Orbitron:wght@400;700;900&family=VT323&display=swap');
+
+  :root {
+    --bg: #0a0e14;
+    --bg2: #0d1520;
+    --bg3: #111a26;
+    --green: #00ff88;
+    --cyan: #00e5ff;
+    --pink: #ff2d78;
+    --yellow: #ffe600;
+    --dim: #1a2a3a;
+    --border: #1e3a4a;
+    --text: #c8e8f0;
+    --muted: #4a7a8a;
+    --card: #0d1b2a;
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'Share Tech Mono', monospace;
+    min-height: 100vh;
+    overflow-x: hidden;
+  }
+
+  .scanlines {
+    position: fixed; inset: 0; pointer-events: none; z-index: 9999;
+    background: repeating-linear-gradient(0deg, transparent, transparent 2px, rgba(0,0,0,0.03) 2px, rgba(0,0,0,0.03) 4px);
+  }
+
+  .crt-flicker {
+    animation: flicker 8s infinite;
+  }
+
+  @keyframes flicker {
+    0%,100% { opacity: 1; }
+    92% { opacity: 1; }
+    93% { opacity: 0.96; }
+    94% { opacity: 1; }
+    96% { opacity: 0.98; }
+    97% { opacity: 1; }
+  }
+
+  .app { max-width: 1100px; margin: 0 auto; padding: 24px 16px; }
+
+  .header {
+    text-align: center;
+    margin-bottom: 32px;
+    position: relative;
+  }
+
+  .ascii-border {
+    font-family: 'VT323', monospace;
+    font-size: 14px;
+    color: var(--muted);
+    line-height: 1.3;
+    letter-spacing: 1px;
+  }
+
+  .title-main {
+    font-family: 'Orbitron', sans-serif;
+    font-size: clamp(18px, 4vw, 36px);
+    font-weight: 900;
+    color: var(--green);
+    text-shadow: 0 0 20px rgba(0,255,136,0.6), 0 0 40px rgba(0,255,136,0.3);
+    letter-spacing: 4px;
+    margin: 4px 0;
+  }
+
+  .title-sub {
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 12px;
+    color: var(--cyan);
+    letter-spacing: 6px;
+    opacity: 0.8;
+  }
+
+  .blink { animation: blink 1s step-end infinite; }
+  @keyframes blink { 50% { opacity: 0; } }
+
+  .status-bar {
+    display: flex; gap: 16px; align-items: center;
+    font-size: 11px; color: var(--muted);
+    margin-top: 12px; justify-content: center;
+  }
+
+  .status-dot {
+    width: 6px; height: 6px; border-radius: 50%;
+    background: var(--green);
+    box-shadow: 0 0 6px var(--green);
+    display: inline-block; margin-right: 4px;
+    animation: pulse 2s ease-in-out infinite;
+  }
+
+  @keyframes pulse {
+    0%,100% { box-shadow: 0 0 6px var(--green); }
+    50% { box-shadow: 0 0 16px var(--green), 0 0 30px rgba(0,255,136,0.4); }
+  }
+
+  .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 16px; }
+  @media(max-width:700px) { .grid { grid-template-columns: 1fr; } }
+
+  .panel {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    overflow: hidden;
+  }
+
+  .panel-header {
+    background: var(--dim);
+    padding: 8px 14px;
+    font-family: 'VT323', monospace;
+    font-size: 15px;
+    color: var(--cyan);
+    letter-spacing: 2px;
+    display: flex; align-items: center; gap: 8px;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .panel-dot { width: 8px; height: 8px; border-radius: 50%; }
+  .pd-red { background: #ff5f57; }
+  .pd-yellow { background: #ffbd2e; }
+  .pd-green { background: #28ca41; }
+
+  .panel-body { padding: 14px; }
+
+  textarea {
+    width: 100%; background: transparent; border: none; outline: none;
+    color: var(--green); font-family: 'Share Tech Mono', monospace;
+    font-size: 13px; resize: none; line-height: 1.6;
+    min-height: 200px;
+  }
+
+  textarea::placeholder { color: var(--muted); }
+
+  select {
+    background: var(--dim); border: 1px solid var(--border);
+    color: var(--text); font-family: 'Share Tech Mono', monospace;
+    font-size: 12px; padding: 6px 10px; border-radius: 3px;
+    cursor: pointer; width: 100%; margin-bottom: 10px;
+  }
+
+  .upload-zone {
+    border: 1px dashed var(--muted); border-radius: 4px;
+    padding: 20px; text-align: center; cursor: pointer;
+    transition: all 0.2s; font-size: 12px; color: var(--muted);
+  }
+  .upload-zone:hover, .upload-zone.drag { border-color: var(--cyan); color: var(--cyan); }
+
+  .upload-icon { font-size: 24px; margin-bottom: 8px; display: block; }
+
+  .file-list { margin-top: 10px; }
+  .file-item {
+    font-size: 11px; color: var(--cyan); padding: 3px 0;
+    display: flex; align-items: center; gap: 6px;
+  }
+  .file-item::before { content: '>'; color: var(--green); }
+
+  .btn-row { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 16px; }
+
+  .btn {
+    font-family: 'Orbitron', sans-serif;
+    font-size: 11px; font-weight: 700; letter-spacing: 2px;
+    padding: 10px 20px; border: none; cursor: pointer;
+    border-radius: 3px; transition: all 0.2s; text-transform: uppercase;
+  }
+
+  .btn-primary {
+    background: var(--green); color: #000;
+    box-shadow: 0 0 12px rgba(0,255,136,0.4);
+  }
+  .btn-primary:hover { box-shadow: 0 0 24px rgba(0,255,136,0.7); transform: translateY(-1px); }
+  .btn-primary:disabled { opacity: 0.4; cursor: not-allowed; transform: none; }
+
+  .btn-ghost {
+    background: transparent; color: var(--muted);
+    border: 1px solid var(--border);
+  }
+  .btn-ghost:hover { color: var(--cyan); border-color: var(--cyan); }
+
+  .btn-danger {
+    background: transparent; color: var(--pink);
+    border: 1px solid var(--pink);
+    font-size: 11px;
+  }
+  .btn-danger:hover { background: rgba(255,45,120,0.1); }
+
+  .output-panel { margin-bottom: 16px; }
+
+  .terminal-output {
+    background: var(--card); border: 1px solid var(--border);
+    border-radius: 4px; overflow: hidden;
+  }
+
+  .terminal-body {
+    padding: 16px; font-size: 13px; line-height: 1.8;
+    min-height: 200px; white-space: pre-wrap; word-break: break-word;
+    max-height: 600px; overflow-y: auto;
+  }
+
+  .terminal-body::-webkit-scrollbar { width: 4px; }
+  .terminal-body::-webkit-scrollbar-track { background: var(--bg); }
+  .terminal-body::-webkit-scrollbar-thumb { background: var(--muted); border-radius: 2px; }
+
+  .t-prompt { color: var(--muted); }
+  .t-green { color: var(--green); }
+  .t-cyan { color: var(--cyan); }
+  .t-pink { color: var(--pink); }
+  .t-yellow { color: var(--yellow); }
+  .t-white { color: #fff; }
+
+  .loading-anim {
+    color: var(--cyan); font-family: 'VT323', monospace; font-size: 16px;
+  }
+
+  .score-display {
+    font-family: 'Orbitron', sans-serif;
+    font-size: 28px; font-weight: 900;
+    display: inline-block; padding: 4px 0;
+  }
+
+  .score-10 { color: var(--green); text-shadow: 0 0 10px rgba(0,255,136,0.5); }
+  .score-7  { color: var(--cyan);  text-shadow: 0 0 10px rgba(0,229,255,0.5); }
+  .score-5  { color: var(--yellow); text-shadow: 0 0 10px rgba(255,230,0,0.5); }
+  .score-3  { color: var(--pink); text-shadow: 0 0 10px rgba(255,45,120,0.5); }
+
+  .history-panel { margin-bottom: 16px; }
+
+  .history-list { display: flex; flex-direction: column; gap: 8px; }
+
+  .history-item {
+    background: var(--card); border: 1px solid var(--border);
+    border-radius: 4px; padding: 10px 14px;
+    display: flex; align-items: center; gap: 12px;
+    cursor: pointer; transition: border-color 0.2s;
+  }
+  .history-item:hover { border-color: var(--cyan); }
+
+  .history-lang {
+    font-family: 'VT323', monospace; font-size: 15px; color: var(--green);
+    min-width: 80px;
+  }
+
+  .history-meta { flex: 1; }
+  .history-preview { font-size: 11px; color: var(--muted); overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+  .history-time { font-size: 10px; color: var(--muted); margin-top: 2px; }
+
+  .history-score {
+    font-family: 'Orbitron', sans-serif; font-size: 13px; font-weight: 700;
+    color: var(--yellow);
+  }
+
+  .history-del {
+    background: none; border: none; color: var(--muted); cursor: pointer;
+    font-size: 14px; padding: 2px 6px; transition: color 0.2s;
+  }
+  .history-del:hover { color: var(--pink); }
+
+  .tabs {
+    display: flex; gap: 0; margin-bottom: 16px;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .tab {
+    font-family: 'VT323', monospace; font-size: 16px; letter-spacing: 1px;
+    padding: 8px 20px; cursor: pointer; color: var(--muted);
+    border-bottom: 2px solid transparent; transition: all 0.2s; background: none; border-top: none; border-left: none; border-right: none;
+  }
+  .tab.active { color: var(--green); border-bottom-color: var(--green); }
+  .tab:hover { color: var(--cyan); }
+
+  .badge {
+    background: var(--dim); color: var(--cyan); font-size: 10px;
+    padding: 1px 6px; border-radius: 2px; font-family: 'Share Tech Mono', monospace;
+  }
+
+  .copy-btn {
+    background: none; border: 1px solid var(--border); color: var(--muted);
+    font-family: 'Share Tech Mono', monospace; font-size: 11px;
+    padding: 4px 10px; cursor: pointer; border-radius: 3px; transition: all 0.2s;
+  }
+  .copy-btn:hover { color: var(--cyan); border-color: var(--cyan); }
+
+  .empty-state {
+    text-align: center; padding: 40px 20px;
+    color: var(--muted); font-size: 13px;
+  }
+
+  .empty-state .big { font-family: 'VT323', monospace; font-size: 48px; color: var(--border); }
+
+  .input-tabs { display: flex; gap: 6px; margin-bottom: 10px; }
+  .itab {
+    font-family: 'Share Tech Mono', monospace; font-size: 11px;
+    padding: 4px 10px; border: 1px solid var(--border); background: none;
+    color: var(--muted); cursor: pointer; border-radius: 3px; transition: all 0.2s;
+  }
+  .itab.active { border-color: var(--green); color: var(--green); background: rgba(0,255,136,0.05); }
+
+  .char-count { font-size: 10px; color: var(--muted); text-align: right; margin-top: 4px; }
+</style>
+</head>
+<body>
+<div class="scanlines"></div>
+<div class="app crt-flicker">
+
+  <div class="header">
+    <div class="ascii-border">╔══════════════════════════════════════════════════╗</div>
+    <div class="title-main">⬡ AI CODE REVIEW TERMINAL ⬡</div>
+    <div class="title-sub">// POWERED BY CLAUDE AI //</div>
+    <div class="ascii-border">╚══════════════════════════════════════════════════╝</div>
+    <div class="status-bar">
+      <span><span class="status-dot"></span>SYSTEM ONLINE</span>
+      <span style="color:var(--border)">|</span>
+      <span id="langCount">15 LANGUAGES</span>
+      <span style="color:var(--border)">|</span>
+      <span id="reviewCount">0 REVIEWS</span>
+    </div>
+  </div>
+
+  <div class="tabs">
+    <button class="tab active" onclick="switchTab('review')">[ REVIEW ]</button>
+    <button class="tab" onclick="switchTab('history')">[ HISTORY ]</button>
+  </div>
+
+  <div id="tab-review">
+    <div class="grid">
+      <div class="panel">
+        <div class="panel-header">
+          <span class="panel-dot pd-red"></span>
+          <span class="panel-dot pd-yellow"></span>
+          <span class="panel-dot pd-green"></span>
+          &nbsp;INPUT.SOURCE
+        </div>
+        <div class="panel-body">
+          <div class="input-tabs">
+            <button class="itab active" onclick="switchInputTab('code')">CODE</button>
+            <button class="itab" onclick="switchInputTab('file')">FILE</button>
+          </div>
+
+          <div id="input-code">
+            <select id="langSelect">
+              <option value="auto">⟳ AUTO-DETECT LANGUAGE</option>
+              <option value="JavaScript">JavaScript</option>
+              <option value="TypeScript">TypeScript</option>
+              <option value="Python">Python</option>
+              <option value="Java">Java</option>
+              <option value="C">C</option>
+              <option value="C++">C++</option>
+              <option value="Go">Go</option>
+              <option value="Rust">Rust</option>
+              <option value="PHP">PHP</option>
+              <option value="SQL">SQL</option>
+              <option value="Bash">Bash</option>
+              <option value="HTML">HTML</option>
+              <option value="CSS">CSS</option>
+              <option value="JSON">JSON</option>
+              <option value="YAML">YAML</option>
+              <option value="Ruby">Ruby</option>
+              <option value="Swift">Swift</option>
+              <option value="Kotlin">Kotlin</option>
+            </select>
+            <textarea id="codeInput" placeholder="> PASTE YOUR CODE HERE...&#10;> SUPPORTS 15+ LANGUAGES&#10;> AUTO-DETECTION ENABLED" spellcheck="false"></textarea>
+            <div class="char-count" id="charCount">0 chars</div>
+          </div>
+
+          <div id="input-file" style="display:none">
+            <div class="upload-zone" id="dropZone" onclick="document.getElementById('fileInput').click()"
+              ondragover="event.preventDefault();this.classList.add('drag')"
+              ondragleave="this.classList.remove('drag')"
+              ondrop="handleDrop(event)">
+              <span class="upload-icon">⬡</span>
+              <div>DROP FILES / FOLDERS / ZIP</div>
+              <div style="font-size:10px;margin-top:4px">Click or drag to upload</div>
+            </div>
+            <input type="file" id="fileInput" multiple accept=".js,.ts,.py,.java,.c,.cpp,.go,.rs,.php,.sql,.sh,.html,.css,.json,.yaml,.yml,.txt,.zip,.rb,.swift,.kt" style="display:none" onchange="handleFiles(this.files)">
+            <div class="file-list" id="fileList"></div>
+          </div>
+        </div>
+      </div>
+
+      <div class="panel">
+        <div class="panel-header">
+          <span class="panel-dot pd-red"></span>
+          <span class="panel-dot pd-yellow"></span>
+          <span class="panel-dot pd-green"></span>
+          &nbsp;CONFIG.SYS
+        </div>
+        <div class="panel-body">
+          <div style="font-size:11px;color:var(--muted);margin-bottom:8px;letter-spacing:1px">REVIEW DEPTH</div>
+          <select id="depthSelect" style="margin-bottom:16px">
+            <option value="standard">STANDARD — Full Review</option>
+            <option value="quick">QUICK — Surface scan</option>
+            <option value="deep">DEEP — Senior engineer mode</option>
+            <option value="security">SECURITY — Vuln focused</option>
+          </select>
+
+          <div style="font-size:11px;color:var(--muted);margin-bottom:8px;letter-spacing:1px">FOCUS AREAS</div>
+          <div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:16px" id="focusToggles">
+            <label style="font-size:11px;cursor:pointer"><input type="checkbox" id="f-perf" checked style="accent-color:var(--green)"> Performance</label>
+            <label style="font-size:11px;cursor:pointer"><input type="checkbox" id="f-sec" checked style="accent-color:var(--green)"> Security</label>
+            <label style="font-size:11px;cursor:pointer"><input type="checkbox" id="f-style" checked style="accent-color:var(--green)"> Style</label>
+            <label style="font-size:11px;cursor:pointer"><input type="checkbox" id="f-logic" checked style="accent-color:var(--green)"> Logic</label>
+            <label style="font-size:11px;cursor:pointer"><input type="checkbox" id="f-docs" style="accent-color:var(--green)"> Docs</label>
+          </div>
+
+          <div style="font-size:11px;color:var(--muted);margin-bottom:8px;letter-spacing:1px">OUTPUT FORMAT</div>
+          <select id="formatSelect">
+            <option value="terminal">TERMINAL — ASCII structured</option>
+            <option value="brief">BRIEF — Quick hits</option>
+          </select>
+
+          <div class="btn-row">
+            <button class="btn btn-primary" id="reviewBtn" onclick="runReview()">▶ RUN REVIEW</button>
+            <button class="btn btn-ghost" onclick="clearAll()">⌫ CLEAR</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="output-panel">
+      <div class="terminal-output">
+        <div class="panel-header" style="justify-content:space-between">
+          <div style="display:flex;align-items:center;gap:8px">
+            <span class="panel-dot pd-red"></span>
+            <span class="panel-dot pd-yellow"></span>
+            <span class="panel-dot pd-green"></span>
+            &nbsp;OUTPUT.TERMINAL
+            <span class="badge" id="outputLang" style="display:none">LANG</span>
+          </div>
+          <div style="display:flex;gap:8px">
+            <button class="copy-btn" onclick="copyOutput()">⎘ COPY</button>
+            <button class="copy-btn" onclick="downloadTxt()">⬇ TXT</button>
+          </div>
+        </div>
+        <div class="terminal-body" id="outputTerminal">
+          <span class="t-muted" style="color:var(--muted)">╔══════════════════════════════════════╗
+║   AWAITING CODE INPUT...             ║
+╚══════════════════════════════════════╝
+
+> System initialized
+> AI engine: Claude (claude-sonnet-4-20250514)
+> Mode: Code Review Terminal v2.0
+> Status: READY<span class="blink">_</span></span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div id="tab-history" style="display:none">
+    <div class="panel">
+      <div class="panel-header" style="justify-content:space-between">
+        <span>REVIEW.HISTORY</span>
+        <button class="btn btn-danger" onclick="clearHistory()" style="padding:4px 10px;font-size:10px">⌫ CLEAR ALL</button>
+      </div>
+      <div class="panel-body">
+        <div id="historyContainer">
+          <div class="empty-state">
+            <div class="big">[ ]</div>
+            <div>NO REVIEWS YET</div>
+            <div style="font-size:11px;margin-top:4px">Run your first code review to get started</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<script>
+let history = JSON.parse(localStorage.getItem('cr_history') || '[]');
+let currentOutput = '';
+let uploadedFiles = [];
+let activeInputTab = 'code';
+
+function switchTab(t) {
+  document.querySelectorAll('.tab').forEach(el => el.classList.remove('active'));
+  event.target.classList.add('active');
+  document.getElementById('tab-review').style.display = t === 'review' ? '' : 'none';
+  document.getElementById('tab-history').style.display = t === 'history' ? '' : 'none';
+  if (t === 'history') renderHistory();
+}
+
+function switchInputTab(t) {
+  activeInputTab = t;
+  document.querySelectorAll('.itab').forEach(el => el.classList.remove('active'));
+  event.target.classList.add('active');
+  document.getElementById('input-code').style.display = t === 'code' ? '' : 'none';
+  document.getElementById('input-file').style.display = t === 'file' ? '' : 'none';
+}
+
+document.getElementById('codeInput').addEventListener('input', function() {
+  document.getElementById('charCount').textContent = this.value.length + ' chars';
+});
+
+function handleFiles(files) {
+  uploadedFiles = Array.from(files);
+  renderFileList();
+}
+
+function handleDrop(e) {
+  e.preventDefault();
+  document.getElementById('dropZone').classList.remove('drag');
+  handleFiles(e.dataTransfer.files);
+}
+
+async function readFileContent(file) {
+  if (file.name.endsWith('.zip')) return `[ZIP: ${file.name}]`;
+  return new Promise(r => {
+    const fr = new FileReader();
+    fr.onload = e => r(e.target.result);
+    fr.onerror = () => r(`[Error reading ${file.name}]`);
+    fr.readAsText(file);
+  });
+}
+
+function renderFileList() {
+  const el = document.getElementById('fileList');
+  if (!uploadedFiles.length) { el.innerHTML = ''; return; }
+  el.innerHTML = uploadedFiles.map(f =>
+    `<div class="file-item">${f.name} <span style="color:var(--muted);font-size:10px">(${(f.size/1024).toFixed(1)}KB)</span></div>`
+  ).join('');
+}
+
+function getChecked(id) { return document.getElementById(id).checked; }
+
+async function runReview() {
+  const btn = document.getElementById('reviewBtn');
+  btn.disabled = true;
+  const terminal = document.getElementById('outputTerminal');
+  currentOutput = '';
+
+  let code = '';
+  let lang = document.getElementById('langSelect').value;
+
+  if (activeInputTab === 'file' && uploadedFiles.length) {
+    const contents = await Promise.all(uploadedFiles.map(async f => {
+      const c = await readFileContent(f);
+      return `// === FILE: ${f.name} ===\n${c}`;
+    }));
+    code = contents.join('\n\n');
+    if (lang === 'auto') lang = detectLang(uploadedFiles[0].name);
+  } else {
+    code = document.getElementById('codeInput').value.trim();
+  }
+
+  if (!code) {
+    terminal.innerHTML = '<span style="color:var(--pink)">ERROR: No code provided. Paste code or upload a file.</span>';
+    btn.disabled = false;
+    return;
+  }
+
+  const depth = document.getElementById('depthSelect').value;
+  const format = document.getElementById('formatSelect').value;
+  const focuses = [
+    getChecked('f-perf') && 'performance',
+    getChecked('f-sec') && 'security',
+    getChecked('f-style') && 'code style',
+    getChecked('f-logic') && 'logic/correctness',
+    getChecked('f-docs') && 'documentation'
+  ].filter(Boolean).join(', ');
+
+  terminal.innerHTML = `<span class="loading-anim">
+> INITIALIZING REVIEW ENGINE...
+> LANGUAGE: ${lang === 'auto' ? 'AUTO-DETECTING' : lang.toUpperCase()}
+> DEPTH: ${depth.toUpperCase()}
+> FOCUS: ${focuses || 'ALL'}
+> SENDING TO AI...
+
+<span class="blink">█</span></span>`;
+
+  const systemPrompt = `You are a senior code reviewer AI embedded in a retro terminal tool. 
+Review code in this EXACT format (use ASCII art separators):
+
+[ CODE REVIEW START ]
+════════════════════════════════════════
+
+✔ STRENGTHS:
+- [strength 1]
+- [strength 2]
+- [strength 3]
+
+✖ ISSUES FOUND:
+- [issue with line ref if possible]
+- [another issue]
+
+➜ SUGGESTIONS:
+1. [actionable suggestion]
+2. [another suggestion]
+3. [another suggestion]
+
+⚡ IMPROVEMENTS:
+- [specific improvement]
+- [another improvement]
+
+💡 ALTERNATIVE SOLUTIONS:
+
+Solution 1 — [approach name]:
+\`\`\`
+[working improved code]
+\`\`\`
+
+Solution 2 — [different approach]:
+\`\`\`
+[another correct approach]
+\`\`\`
+
+📊 CODE SCORE: [X]/10
+Reason: [1 sentence justification]
+
+🧠 VIBE CHECK:
+- [personality/style observation 1]
+- [personality/style observation 2]
+- [humor/Gen Z observation]
+
+════════════════════════════════════════
+[ CODE REVIEW END ]
+
+Be specific, reference line numbers when possible. For DEEP mode: be very thorough. For SECURITY mode: focus on vulnerabilities. Keep it terminal-aesthetic.`;
+
+  const userMsg = `${lang !== 'auto' ? `Language: ${lang}\n` : ''}Review depth: ${depth}\nFocus areas: ${focuses || 'all'}\n\nCode to review:\n\`\`\`\n${code.slice(0, 8000)}\n\`\`\``;
+
+  try {
+    const res = await fetch('https://api.anthropic.com/v1/messages', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        model: 'claude-sonnet-4-20250514',
+        max_tokens: 2000,
+        system: systemPrompt,
+        messages: [{ role: 'user', content: userMsg }]
+      })
+    });
+
+    const data = await res.json();
+    const text = (data.content || []).map(b => b.text || '').join('');
+    currentOutput = text;
+
+    const detectedLang = lang === 'auto' ? detectLangFromCode(code) : lang;
+    const score = extractScore(text);
+
+    terminal.innerHTML = colorize(text);
+
+    document.getElementById('outputLang').textContent = detectedLang.toUpperCase();
+    document.getElementById('outputLang').style.display = '';
+
+    const entry = {
+      id: Date.now(),
+      lang: detectedLang,
+      code: code.slice(0, 200),
+      output: text,
+      score: score,
+      depth: depth,
+      ts: new Date().toLocaleString()
+    };
+    history.unshift(entry);
+    if (history.length > 50) history = history.slice(0, 50);
+    localStorage.setItem('cr_history', JSON.stringify(history));
+    document.getElementById('reviewCount').textContent = history.length + ' REVIEWS';
+
+  } catch(e) {
+    terminal.innerHTML = `<span style="color:var(--pink)">ERROR: ${e.message}\n\nMake sure you're using this in the Claude.ai artifact environment.</span>`;
+  }
+
+  btn.disabled = false;
+}
+
+function detectLang(filename) {
+  const ext = filename.split('.').pop().toLowerCase();
+  const map = {js:'JavaScript',ts:'TypeScript',py:'Python',java:'Java',c:'C',cpp:'C++',go:'Go',rs:'Rust',php:'PHP',sql:'SQL',sh:'Bash',html:'HTML',css:'CSS',json:'JSON',yaml:'YAML',yml:'YAML',rb:'Ruby',swift:'Swift',kt:'Kotlin'};
+  return map[ext] || 'Unknown';
+}
+
+function detectLangFromCode(code) {
+  if (code.includes('def ') && code.includes(':')) return 'Python';
+  if (code.includes('function') || code.includes('=>')) return 'JavaScript';
+  if (code.includes('interface ') || code.includes(': string')) return 'TypeScript';
+  if (code.includes('public class') || code.includes('System.out')) return 'Java';
+  if (code.includes('package main') || code.includes('func ')) return 'Go';
+  if (code.includes('fn ') && code.includes('let mut')) return 'Rust';
+  if (code.includes('<?php')) return 'PHP';
+  if (code.includes('SELECT') || code.includes('FROM')) return 'SQL';
+  if (code.includes('#!/bin/bash') || code.includes('echo ')) return 'Bash';
+  if (code.includes('<html') || code.includes('<!DOCTYPE')) return 'HTML';
+  if (code.includes('{') && code.includes(':') && !code.includes('function')) return 'JSON';
+  return 'Code';
+}
+
+function extractScore(text) {
+  const m = text.match(/(\d+)\s*\/\s*10/);
+  return m ? parseInt(m[1]) : null;
+}
+
+function colorize(text) {
+  return text
+    .replace(/\[ CODE REVIEW (START|END) \]/g, '<span style="color:var(--cyan);font-weight:bold">[ CODE REVIEW $1 ]</span>')
+    .replace(/═+/g, '<span style="color:var(--dim)">$&</span>')
+    .replace(/✔ (STRENGTHS.*)/g, '<span style="color:var(--green)">✔ $1</span>')
+    .replace(/✖ (ISSUES.*)/g, '<span style="color:var(--pink)">✖ $1</span>')
+    .replace(/➜ (SUGGESTIONS.*)/g, '<span style="color:var(--cyan)">➜ $1</span>')
+    .replace(/⚡ (IMPROVEMENTS.*)/g, '<span style="color:var(--yellow)">⚡ $1</span>')
+    .replace(/💡 (ALTERNATIVE.*)/g, '<span style="color:var(--cyan)">💡 $1</span>')
+    .replace(/📊 (CODE SCORE.*)/g, '<span style="color:var(--yellow);font-family:Orbitron,sans-serif;font-size:14px">📊 $1</span>')
+    .replace(/🧠 (VIBE CHECK.*)/g, '<span style="color:var(--pink)">🧠 $1</span>')
+    .replace(/```[\s\S]*?```/g, m => `<span style="color:var(--green);background:rgba(0,255,136,0.05);display:block;padding:8px;border-left:2px solid var(--green);margin:4px 0">${m}</span>`)
+    .replace(/(\d+)\/10/g, (_, n) => {
+      const sc = parseInt(n);
+      const cls = sc>=8?'score-10':sc>=6?'score-7':sc>=4?'score-5':'score-3';
+      return `<span class="score-display ${cls}">${n}/10</span>`;
+    });
+}
+
+function copyOutput() {
+  if (!currentOutput) return;
+  navigator.clipboard.writeText(currentOutput).then(() => {
+    const btn = event.target;
+    btn.textContent = '✓ COPIED';
+    setTimeout(() => btn.textContent = '⎘ COPY', 1500);
+  });
+}
+
+function downloadTxt() {
+  if (!currentOutput) return;
+  const blob = new Blob([currentOutput], {type: 'text/plain'});
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = `code-review-${Date.now()}.txt`;
+  a.click();
+}
+
+function clearAll() {
+  document.getElementById('codeInput').value = '';
+  document.getElementById('charCount').textContent = '0 chars';
+  uploadedFiles = [];
+  renderFileList();
+  document.getElementById('outputTerminal').innerHTML = '<span style="color:var(--muted)">Terminal cleared. Ready for new input.<span class="blink">_</span></span>';
+  document.getElementById('outputLang').style.display = 'none';
+  currentOutput = '';
+}
+
+function renderHistory() {
+  const el = document.getElementById('historyContainer');
+  if (!history.length) {
+    el.innerHTML = '<div class="empty-state"><div class="big">[ ]</div><div>NO REVIEWS YET</div></div>';
+    return;
+  }
+  el.innerHTML = '<div class="history-list">' + history.map(h => `
+    <div class="history-item" onclick="loadHistory(${h.id})">
+      <div class="history-lang">[${(h.lang||'?').toUpperCase().slice(0,3)}]</div>
+      <div class="history-meta">
+        <div class="history-preview">> ${h.code.replace(/\n/g,' ').slice(0,80)}...</div>
+        <div class="history-time">${h.ts} · ${h.depth||'standard'}</div>
+      </div>
+      ${h.score ? `<div class="history-score">${h.score}/10</div>` : ''}
+      <button class="history-del" onclick="event.stopPropagation();deleteHistory(${h.id})">✕</button>
+    </div>
+  `).join('') + '</div>';
+}
+
+function loadHistory(id) {
+  const h = history.find(x => x.id === id);
+  if (!h) return;
+  currentOutput = h.output;
+  document.getElementById('codeInput').value = h.code;
+  document.getElementById('outputTerminal').innerHTML = colorize(h.output);
+  document.getElementById('outputLang').textContent = (h.lang||'?').toUpperCase();
+  document.getElementById('outputLang').style.display = '';
+  switchTab('review');
+  document.querySelectorAll('.tab').forEach((el,i) => el.classList.toggle('active', i===0));
+}
+
+function deleteHistory(id) {
+  history = history.filter(x => x.id !== id);
+  localStorage.setItem('cr_history', JSON.stringify(history));
+  renderHistory();
+  document.getElementById('reviewCount').textContent = history.length + ' REVIEWS';
+}
+
+function clearHistory() {
+  if (confirm('Clear all review history?')) {
+    history = [];
+    localStorage.setItem('cr_history', '[]');
+    renderHistory();
+    document.getElementById('reviewCount').textContent = '0 REVIEWS';
+  }
+}
+
+document.getElementById('reviewCount').textContent = history.length + ' REVIEWS';
+</script>
+</body>
+</html>

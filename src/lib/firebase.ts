@@ -1,7 +1,6 @@
 // Firebase app + services initializer
 // Config is read from Vite env vars — set them in your .env file.
 import { initializeApp, getApps, getApp } from "firebase/app";
-import { getAuth } from "firebase/auth";
 import { getFirestore } from "firebase/firestore";
 
 const firebaseConfig = {
@@ -22,13 +21,14 @@ if (missingKeys.length > 0) {
   console.warn(
     `[Codelens] Missing Firebase env vars: ${missingKeys.join(", ")}\n` +
     "Set them in your .env file (see .env.example).\n" +
-    "Auth and history features will not work without them."
+    "History features will not work without them."
   );
 }
 
 // Avoid duplicate app initialization during HMR
 const app = getApps().length ? getApp() : initializeApp(firebaseConfig);
 
-export const auth = getAuth(app);
+
 export const db   = getFirestore(app);
 export default app;
+ 
