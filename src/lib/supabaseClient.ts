@@ -6,9 +6,9 @@
  *   supabase.from("reviews")
  *     .select("*").eq("user_id", uid).order("created_at", { ascending: false })
  *     .insert({ ... })
- *     .delete().eq("id", id)
+ *     .delete()  // NO: Use .eq("id", id).delete() instead
+ *     .eq("id", id).delete()
  *
- * No frontend file needs to change.
  */
 import {
   collection,
@@ -35,7 +35,7 @@ interface FirestoreDoc {
 
 // ─── Query builder ────────────────────────────────────────────────────────────
 
-class QueryBuilder {
+class QueryBuilder<T = FirestoreDoc> {
   private _table: string;
   private _filters: Array<{ field: string; value: unknown }> = [];
   private _orderField?: string;
@@ -59,7 +59,7 @@ class QueryBuilder {
   }
 
   // Terminal: .select("*")  — returns { data, error }
-  async select(_columns = "*"): Promise<{ data: FirestoreDoc[] | null; error: Error | null }> {
+  async select(_columns = "*"): Promise<{ data: T[] | null; error: Error | null }> {
     try {
       const colRef = collection(db, this._table);
       const constraints = [
@@ -71,14 +71,14 @@ class QueryBuilder {
       const q = query(colRef, ...constraints);
       const snap = await getDocs(q);
 
-      const data: FirestoreDoc[] = snap.docs.map((d) => {
+      const data = snap.docs.map((d) => {
         const raw = d.data();
         // Convert Firestore Timestamps → ISO strings so the UI keeps working
         const converted: Record<string, unknown> = {};
         for (const [k, v] of Object.entries(raw)) {
           converted[k] = v instanceof Timestamp ? v.toDate().toISOString() : v;
         }
-        return { id: d.id, ...converted };
+        return { id: d.id, ...converted } as unknown as T;
       });
 
       return { data, error: null };
@@ -88,23 +88,23 @@ class QueryBuilder {
   }
 
   // Terminal: .insert({ ... })  — returns { data, error }
-  async insert(record: Record<string, unknown>): Promise<{ data: FirestoreDoc | null; error: Error | null }> {
+  async insert(record: Partial<T>): Promise<{ data: T | null; error: Error | null }> {
     try {
       const colRef = collection(db, this._table);
       const docRef = await addDoc(colRef, {
         ...record,
         created_at: serverTimestamp(),
       });
-      return { data: { id: docRef.id, ...record }, error: null };
+      return { data: { id: docRef.id, ...record } as unknown as T, error: null };
     } catch (e) {
       return { data: null, error: e as Error };
     }
   }
 
-  // Terminal: .delete()  — must be chained with .eq("id", id) first
+  // Terminal: .delete()  — must be called at the end (e.g., .eq("id", id).delete())
   async delete(): Promise<{ error: Error | null }> {
     const idFilter = this._filters.find((f) => f.field === "id");
-    if (!idFilter) return { error: new Error("delete() requires .eq('id', value)") };
+    if (!idFilter) return { error: new Error("delete() requires .eq('id', value) to be called first") };
     try {
       await deleteDoc(doc(db, this._table, String(idFilter.value)));
       return { error: null };
@@ -121,7 +121,7 @@ class QueryBuilder {
  * Only `from()` is exposed — that's all the project uses.
  */
 export const supabase = {
-  from(table: string) {
-    return new QueryBuilder(table);
+  from<T = FirestoreDoc>(table: string) {
+    return new QueryBuilder<T>(table);
   },
 };
