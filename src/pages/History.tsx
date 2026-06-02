@@ -1,8 +1,9 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "@/lib/supabaseClient";
+import { useAuth } from "@/hooks/useAuth";
 import { TerminalHeader } from "@/components/TerminalHeader";
-import { Trash2, RotateCcw, Download, Eye, Inbox } from "lucide-react";
+import { Trash2, RotateCcw, Download, Eye, Inbox, Copy, Check } from "lucide-react";
 import { saveAs } from "file-saver";
 
 export interface ReviewRecord {
@@ -13,6 +14,7 @@ export interface ReviewRecord {
   score: number | null;
   input_type: string;
   created_at: string;
+  user_id?: string;
 }
 
 function colorizeReview(text: string) {
@@ -35,21 +37,25 @@ function extractScore(review: string) {
 
 export default function HistoryPage() {
   const navigate = useNavigate();
+  const { user } = useAuth();
   const [reviews, setReviews]   = useState<ReviewRecord[]>([]);
   const [loading, setLoading]   = useState(true);
   const [selected, setSelected] = useState<ReviewRecord | null>(null);
+  const [copied, setCopied] = useState(false);
 
-  useEffect(() => { loadHistory(); }, []);
-
-  const loadHistory = async () => {
-    setLoading(true);
-    const { data } = await supabase
-      .from<ReviewRecord>("reviews")
-      .order("created_at", { ascending: false })
-      .select("*");
-    setReviews(data || []);
-    setLoading(false);
-  };
+  useEffect(() => {
+    const loadHistory = async () => {
+      setLoading(true);
+      const q = supabase
+        .from<ReviewRecord>("reviews")
+        .order("created_at", { ascending: false });
+      if (user?.uid) q.eq("user_id", user.uid);
+      const { data } = await q.select("*");
+      setReviews(data || []);
+      setLoading(false);
+    };
+    loadHistory();
+  }, [user]);
 
   const deleteReview = async (id: string) => {
     await supabase.from("reviews").eq("id", id).delete();

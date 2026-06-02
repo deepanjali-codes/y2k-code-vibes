@@ -1,12 +1,13 @@
 import { useState, useCallback, useEffect, useRef } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { TerminalHeader } from "@/components/TerminalHeader";
-import { detectLanguage, SupportedLanguage, chunkCode } from "@/lib/ollama";
+import { detectLanguage, SupportedLanguage } from "@/lib/ollama";
 import { reviewCodeUnified, detectProvider, type AIProvider } from "@/lib/aiProvider";
 import { supabase } from "@/lib/supabaseClient";
+import { useAuth } from "@/hooks/useAuth";
 import { ReviewRecord } from "./History";
 import { processFiles, processImageOCR } from "@/lib/fileProcessor";
-import { FileCode, FolderOpen, Image, Upload, Download, Copy, Check } from "lucide-react";
+import { FileCode, FolderOpen, Image, Upload, Download, Copy, Check, RotateCcw, X, Square } from "lucide-react";
 import { saveAs } from "file-saver";
 
 const LANGUAGES: SupportedLanguage[] = [
@@ -19,11 +20,12 @@ type InputTab = "paste" | "upload" | "folder" | "screenshot";
 function colorizeReview(text: string) {
   return text.split("\n").map((line, i) => {
     let cls = "text-foreground";
-    if (line.startsWith("✓") || line.startsWith("✔")) cls = "text-hero-green";
-    else if (line.startsWith("✗") || line.startsWith("✖")) cls = "text-destructive";
-    else if (line.startsWith("→") || line.startsWith("➜")) cls = "text-hero-blue";
-    else if (line.startsWith("📊")) cls = "text-hero-blue font-semibold";
-    else if (line.startsWith("💡") || line.startsWith("🧠")) cls = "text-hero-purple font-semibold";
+    const cleanLine = line.replace(/^[#\s*_>-]+/g, "").trim();
+    if (cleanLine.startsWith("✓") || cleanLine.startsWith("✔")) cls = "text-hero-green";
+    else if (cleanLine.startsWith("✗") || cleanLine.startsWith("✖")) cls = "text-destructive";
+    else if (cleanLine.startsWith("→") || cleanLine.startsWith("➜")) cls = "text-hero-blue";
+    else if (cleanLine.startsWith("📊")) cls = "text-hero-blue font-semibold";
+    else if (cleanLine.startsWith("💡") || cleanLine.startsWith("🧠")) cls = "text-hero-purple font-semibold";
     else if (line.includes("[ CODE REVIEW")) cls = "text-foreground font-bold";
     return <span key={i} className={cls}>{line}{"\n"}</span>;
   });
@@ -32,6 +34,7 @@ function colorizeReview(text: string) {
 export default function ReviewPage() {
   const location = useLocation();
   const navigate = useNavigate();
+  const { user } = useAuth();
   const initState = location.state as { code?: string; language?: string } | null;
 
   const [tab, setTab] = useState<InputTab>("paste");
@@ -46,10 +49,11 @@ export default function ReviewPage() {
   const [copied, setCopied] = useState(false);
   const [dragOver, setDragOver] = useState(false);
   const [processing, setProcessing] = useState(false);
+  const abortRef = useRef<AbortController | null>(null);
 
   // AI provider state (auto-detected)
   const [provider, setProvider] = useState<AIProvider>("gemini");
-  const [model, setModel] = useState("gemini-2.0-flash");
+  const [model, setModel] = useState("gemini-3.5-flash");
 
   const fileInputRef   = useRef<HTMLInputElement>(null);
   const folderInputRef = useRef<HTMLInputElement>(null);
@@ -99,31 +103,46 @@ export default function ReviewPage() {
 
   const handleReview = useCallback(async () => {
     if (!code.trim()) return;
+    const controller = new AbortController();
+    abortRef.current = controller;
     setIsLoading(true);
     setReview("");
     setScore(null);
     const lang = language || detectLanguage(code);
     setDetectedLang(lang);
     try {
-      const chunks = provider === "ollama" ? chunkCode(code) : [code];
       let full = "";
-      for (let i = 0; i < chunks.length; i++) {
-        if (chunks.length > 1) { full += `\n// === CHUNK ${i+1}/${chunks.length} ===\n`; setReview(full); }
-        await reviewCodeUnified(chunks[i], lang, provider, model, (tok) => { full += tok; setReview(full); });
-      }
+      await reviewCodeUnified(code, lang, provider, model, (tok) => { full += tok; setReview(full); }, controller.signal);
       const m = full.match(/(\d+(?:\.\d+)?)\s*\/\s*10/);
       const sc = m ? parseFloat(m[1]) : null;
       setScore(m ? m[1] : null);
-      await supabase.from<ReviewRecord>("reviews").insert({
-        code: code.slice(0, 10000), language: lang, review: full, score: sc, input_type: tab,
-      });
+      if (!controller.signal.aborted) {
+        await supabase.from<ReviewRecord>("reviews").insert({
+          code: code.slice(0, 10000), language: lang, review: full, score: sc, input_type: tab,
+          user_id: user?.uid || "",
+        });
+      }
     } catch (err) {
+      if ((err as Error)?.name === "AbortError") return;
       const msg = err instanceof Error ? err.message : String(err);
       setReview(`✗ ERROR: ${msg}\n\nCheck your VITE_GEMINI_API_KEY in .env`);
     } finally {
+      abortRef.current = null;
       setIsLoading(false);
     }
   }, [code, language, provider, model, tab]);
+
+  const handleStop = useCallback(() => {
+    abortRef.current?.abort();
+    abortRef.current = null;
+    setIsLoading(false);
+  }, []);
+
+  const handleNewReview = useCallback(() => {
+    setCode("");
+    setReview("");
+    setScore(null);
+  }, []);
 
   const handleCopy = async () => {
     try { await navigator.clipboard.writeText(review); }
@@ -237,18 +256,59 @@ export default function ReviewPage() {
           <input ref={imageInputRef}  type="file" accept="image/*" className="hidden" onChange={(e) => e.target.files && handleFiles(Array.from(e.target.files))} />
         </div>
 
-        {/* ── Review Button ── */}
-        <button
-          onClick={handleReview}
-          disabled={isLoading || !code.trim()}
-          className="w-full btn-primary py-3 flex items-center justify-center gap-2 disabled:opacity-50 mb-4 text-base"
-        >
+        {/* ── Action Buttons ── */}
+        <div className="flex gap-2 mb-4">
           {isLoading ? (
-            <><span className="animate-blink">▊</span> analyzing code...</>
+            <>
+              <button
+                onClick={handleStop}
+                className="flex-1 bg-destructive text-destructive-foreground font-mono text-base py-3 rounded flex items-center justify-center gap-2 hover:opacity-90 transition-opacity"
+              >
+                <Square className="h-4 w-4" /> stop review
+              </button>
+              <button
+                onClick={() => { handleStop(); handleNewReview(); }}
+                className="btn-outline py-3 px-4 flex items-center gap-1"
+                title="New review"
+              >
+                <RotateCcw className="h-4 w-4" />
+              </button>
+              <button
+                onClick={() => { handleStop(); navigate("/"); }}
+                className="btn-outline py-3 px-4 flex items-center gap-1 text-destructive"
+                title="Leave"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </>
           ) : (
-            "> review code"
+            <>
+              <button
+                onClick={handleReview}
+                disabled={!code.trim()}
+                className="flex-1 btn-primary py-3 flex items-center justify-center gap-2 disabled:opacity-50 text-base"
+              >
+                &gt; review code
+              </button>
+              {review && (
+                <button
+                  onClick={handleNewReview}
+                  className="btn-outline py-3 px-4 flex items-center gap-1 text-hero-green"
+                  title="New review"
+                >
+                  <RotateCcw className="h-4 w-4" />
+                </button>
+              )}
+              <button
+                onClick={() => navigate("/")}
+                className="btn-outline py-3 px-4 flex items-center gap-1 text-muted-foreground hover:text-destructive"
+                title="Leave"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </>
           )}
-        </button>
+        </div>
 
         {/* ── Terminal Output ── */}
         <div className="terminal-window">
@@ -288,9 +348,10 @@ export default function ReviewPage() {
             )}
           </div>
 
-          {/* Bottom action bar — only shown after review */}
-          {review && !isLoading && (
-            <div className="border-t border-border px-4 py-2 flex flex-wrap items-center gap-2">
+          {/* ── Copy / Download / Actions bar — visible whenever review text exists ── */}
+          {review && (
+            <div className="border-t border-border px-4 py-3 flex flex-wrap items-center gap-2">
+              {/* Left: score + language badges */}
               {score && (
                 <span className="score-badge">
                   score: <span className="text-hero-blue font-semibold">{score}/10</span>
@@ -298,18 +359,37 @@ export default function ReviewPage() {
               )}
               <span className="score-badge">{detectedLang}</span>
 
-              <div className="ml-auto flex items-center gap-1">
-                <button onClick={handleCopy} className="score-badge hover:bg-muted/50 transition-colors cursor-pointer">
-                  {copied ? <Check className="h-3 w-3" /> : <Copy className="h-3 w-3" />}
-                  {copied ? "copied" : "copy"}
+              {/* Right: prominent action buttons */}
+              <div className="ml-auto flex items-center gap-2 flex-wrap">
+                <button
+                  onClick={handleCopy}
+                  className="flex items-center gap-1.5 px-3 py-1.5 rounded border border-border font-mono text-xs text-foreground hover:bg-muted/60 transition-colors cursor-pointer"
+                >
+                  {copied ? <Check className="h-3.5 w-3.5 text-hero-green" /> : <Copy className="h-3.5 w-3.5" />}
+                  {copied ? "copied!" : "copy review"}
                 </button>
-                <button onClick={handleDownloadTxt} className="score-badge hover:bg-muted/50 transition-colors cursor-pointer">
-                  <Download className="h-3 w-3" /> .txt
+                <button
+                  onClick={handleDownloadTxt}
+                  className="flex items-center gap-1.5 px-3 py-1.5 rounded border border-border font-mono text-xs text-foreground hover:bg-muted/60 transition-colors cursor-pointer"
+                >
+                  <Download className="h-3.5 w-3.5" /> download .txt
                 </button>
-                <button onClick={handleDownloadPdf} className="score-badge hover:bg-muted/50 transition-colors cursor-pointer">
-                  <Download className="h-3 w-3" /> .pdf
+                <button
+                  onClick={handleDownloadPdf}
+                  className="flex items-center gap-1.5 px-3 py-1.5 rounded border border-border font-mono text-xs text-foreground hover:bg-muted/60 transition-colors cursor-pointer"
+                >
+                  <Download className="h-3.5 w-3.5" /> download .pdf
                 </button>
-                <button onClick={() => navigate("/history")} className="score-badge hover:bg-muted/50 transition-colors cursor-pointer text-hero-purple">
+                <button
+                  onClick={handleNewReview}
+                  className="flex items-center gap-1.5 px-3 py-1.5 rounded border border-hero-green/40 font-mono text-xs text-hero-green hover:bg-hero-green/10 transition-colors cursor-pointer font-semibold"
+                >
+                  <RotateCcw className="h-3.5 w-3.5" /> new review
+                </button>
+                <button
+                  onClick={() => navigate("/history")}
+                  className="flex items-center gap-1.5 px-3 py-1.5 rounded border border-hero-purple/40 font-mono text-xs text-hero-purple hover:bg-hero-purple/10 transition-colors cursor-pointer"
+                >
                   view history
                 </button>
               </div>

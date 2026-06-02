@@ -80,9 +80,10 @@ export async function reviewCodeUnified(
   provider: AIProvider,
   model: string,
   onToken?: (token: string) => void,
+  signal?: AbortSignal,
 ): Promise<string> {
   if (provider === "gemini") {
-    return reviewCodeWithGemini(code, language, model as GeminiModel, onToken);
+    return reviewCodeWithGemini(code, language, model as GeminiModel, onToken, signal);
   }
-  return ollamaReview(code, language, model, onToken);
+  return ollamaReview(code, language, model, onToken, signal);
 }

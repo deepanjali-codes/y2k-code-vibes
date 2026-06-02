@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { useAuth } from "@/hooks/useAuth";
+import { TerminalHeader } from "@/components/TerminalHeader";
 
 export default function LoginPage() {
   const { login } = useAuth();
@@ -29,24 +30,7 @@ export default function LoginPage() {
   return (
     <div className="min-h-screen bg-background flex flex-col">
       {/* Navbar */}
-      <header className="bg-navbar border-b border-white/10">
-        <div className="max-w-5xl mx-auto px-4 h-12 flex items-center justify-between">
-          <Link to="/" className="flex items-center gap-2">
-            <span className="text-hero-blue font-mono font-bold text-sm">&gt;_</span>
-            <span className="font-mono text-sm font-bold text-white tracking-wide">
-              codelens_v1.0
-            </span>
-          </Link>
-          <div className="flex items-center gap-3">
-            <span className="font-mono text-sm text-white/50">login</span>
-            <Link to="/signup">
-              <button className="bg-primary text-white font-mono text-sm px-4 py-1.5 rounded hover:opacity-90">
-                sign up
-              </button>
-            </Link>
-          </div>
-        </div>
-      </header>
+      <TerminalHeader />
 
       {/* Card */}
       <div className="flex-1 flex items-center justify-center p-4">

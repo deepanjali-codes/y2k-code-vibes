@@ -1,11 +1,12 @@
 import { useEffect, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { useAuth } from "@/hooks/useAuth";
+import { TerminalHeader } from "@/components/TerminalHeader";
 
 const BOOT_LINES = [
   "> initializing system...",
   "> loading intelligence modules...",
-  "> connecting to ai core (gemini-2.0-flash)...",
+  "> connecting to ai core (gemini-3.5-flash)...",
   "> calibrating senior engineer persona...",
   "> ready.",
 ];
@@ -117,34 +118,7 @@ export default function LandingPage() {
   return (
     <div className="min-h-screen bg-background">
       {/* ── Navbar ── */}
-      <header className="bg-navbar sticky top-0 z-50 border-b border-white/10">
-        <div className="max-w-5xl mx-auto px-4 h-12 flex items-center justify-between">
-          {/* Logo */}
-          <Link to="/" className="flex items-center gap-2">
-            <span className="text-hero-blue font-mono font-bold text-sm">
-              &gt;_
-            </span>
-            <span className="font-mono text-sm font-bold text-white tracking-wide">
-              codelens_v1.0
-            </span>
-          </Link>
-
-          {/* Nav actions */}
-          <div className="flex items-center gap-3">
-            <Link
-              to="/login"
-              className="font-mono text-sm text-white/80 hover:text-white transition-colors"
-            >
-              login
-            </Link>
-            <Link to="/signup">
-              <button className="bg-primary text-white font-mono text-sm px-4 py-1.5 rounded hover:opacity-90 transition-opacity">
-                sign up
-              </button>
-            </Link>
-          </div>
-        </div>
-      </header>
+      <TerminalHeader />
 
       {/* ── Hero ── */}
       <section className="max-w-5xl mx-auto px-4 pt-16 pb-10">
