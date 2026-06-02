@@ -20,8 +20,23 @@ export default function LoginPage() {
       await login(email, password);
       navigate("/app");
     } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : "Login failed.";
-      setError(msg.replace("Firebase: ", "").replace(/ \(auth\/.*\)\.?/, ""));
+      const raw = err instanceof Error ? err.message : String(err);
+      // Map Firebase error codes to friendly messages
+      if (raw.includes("auth/invalid-credential") || raw.includes("INVALID_LOGIN_CREDENTIALS")) {
+        setError("Invalid email or password. Please try again.");
+      } else if (raw.includes("auth/user-not-found")) {
+        setError("No account found with this email. Sign up first.");
+      } else if (raw.includes("auth/wrong-password")) {
+        setError("Incorrect password. Please try again.");
+      } else if (raw.includes("auth/too-many-requests")) {
+        setError("Too many failed attempts. Please wait a moment and try again.");
+      } else if (raw.includes("auth/network-request-failed")) {
+        setError("Network error. Check your internet connection.");
+      } else if (raw.includes("auth/invalid-email")) {
+        setError("Invalid email format.");
+      } else {
+        setError(raw.replace("Firebase: ", "").replace(/ \(auth\/.*\)\.?/, ""));
+      }
     } finally {
       setLoading(false);
     }

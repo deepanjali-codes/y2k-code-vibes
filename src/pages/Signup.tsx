@@ -25,8 +25,23 @@ export default function SignupPage() {
       await signup(email, password, name || undefined);
       navigate("/app");
     } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : "Signup failed.";
-      setError(msg.replace("Firebase: ", "").replace(/ \(auth\/.*\)\.?/, ""));
+      const raw = err instanceof Error ? err.message : String(err);
+      // Map Firebase error codes to friendly messages
+      if (raw.includes("auth/email-already-in-use")) {
+        setError("An account with this email already exists. Try logging in instead.");
+      } else if (raw.includes("auth/invalid-email")) {
+        setError("Invalid email format.");
+      } else if (raw.includes("auth/weak-password")) {
+        setError("Password is too weak. Use at least 6 characters.");
+      } else if (raw.includes("auth/network-request-failed")) {
+        setError("Network error. Check your internet connection.");
+      } else if (raw.includes("auth/too-many-requests")) {
+        setError("Too many attempts. Please wait a moment and try again.");
+      } else if (raw.includes("auth/operation-not-allowed")) {
+        setError("Email/password sign-up is not enabled for this project.");
+      } else {
+        setError(raw.replace("Firebase: ", "").replace(/ \(auth\/.*\)\.?/, ""));
+      }
     } finally {
       setLoading(false);
     }

@@ -16,10 +16,22 @@ import NotFound     from "./pages/NotFound";
 
 const queryClient = new QueryClient();
 
+/** Minimal full-screen loader shown while Firebase auth resolves */
+function AuthLoading() {
+  return (
+    <div className="min-h-screen bg-background flex items-center justify-center">
+      <div className="font-mono text-sm text-muted-foreground flex flex-col items-center gap-3">
+        <div className="animate-pulse text-primary text-2xl">⬡</div>
+        <span>initializing codelens...</span>
+      </div>
+    </div>
+  );
+}
+
 /** Redirects to /login if the user is not authenticated */
 function Protected({ children }: { children: ReactNode }) {
   const { user, loading } = useAuth();
-  if (loading) return null; // or a spinner
+  if (loading) return <AuthLoading />;
   if (!user) return <Navigate to="/login" replace />;
   return <>{children}</>;
 }
@@ -27,7 +39,7 @@ function Protected({ children }: { children: ReactNode }) {
 /** Redirects to /app if the user IS already authenticated */
 function Guest({ children }: { children: ReactNode }) {
   const { user, loading } = useAuth();
-  if (loading) return null;
+  if (loading) return <AuthLoading />;
   if (user) return <Navigate to="/app" replace />;
   return <>{children}</>;
 }

@@ -24,11 +24,48 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const unsub = onAuthStateChanged(auth, (u) => {
+    let settled = false;
+
+    const settle = (u: User | null = null) => {
+      if (settled) return;
+      settled = true;
       setUser(u);
       setLoading(false);
-    });
-    return unsub;
+    };
+
+    // Safety timeout — if Firebase never calls back, stop waiting after 5 s
+    const timeout = setTimeout(() => {
+      if (!settled) {
+        console.warn("[Codelens] Firebase auth timed out — continuing as guest.");
+        settle(null);
+      }
+    }, 5000);
+
+    try {
+      const unsub = onAuthStateChanged(
+        auth,
+        (u) => {
+          clearTimeout(timeout);
+          settle(u);
+        },
+        (err) => {
+          console.error("[Codelens] Firebase auth error:", err);
+          clearTimeout(timeout);
+          settle(null);
+        },
+      );
+
+      return () => {
+        clearTimeout(timeout);
+        unsub();
+      };
+    } catch (err) {
+      // If onAuthStateChanged itself throws (e.g. auth object is broken)
+      console.error("[Codelens] Failed to set up auth listener:", err);
+      clearTimeout(timeout);
+      settle(null);
+      return () => clearTimeout(timeout);
+    }
   }, []);
 
   const login = async (email: string, password: string) => {
