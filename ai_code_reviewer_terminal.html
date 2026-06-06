@@ -579,7 +579,11 @@ async function runReview() {
 <span class="blink">█</span></span>`;
 
   const systemPrompt = `You are a senior code reviewer AI embedded in a retro terminal tool. 
-Review code in this EXACT format (use ASCII art separators):
+Review code in this EXACT format (use ASCII art separators).
+
+CRITICAL RULES:
+1. You MUST ALWAYS include the "💡 ALTERNATIVE SOLUTIONS" section. Under NO circumstances should you skip, truncate, or omit the "💡 ALTERNATIVE SOLUTIONS" section. You must provide exactly TWO complete, working, and rewritten alternative code solutions inside it.
+2. Emojis are static and non-negotiable. Use EXACTLY the specified emojis in the output format. Never replace them (e.g., never use 🔢 instead of ✔, never use 🔍 instead of ✖, and do NOT use 💡 for Suggestions — the emoji 💡 is strictly reserved for "💡 ALTERNATIVE SOLUTIONS" only).
 
 [ CODE REVIEW START ]
 ════════════════════════════════════════
@@ -594,9 +598,9 @@ Review code in this EXACT format (use ASCII art separators):
 - [another issue]
 
 ➜ SUGGESTIONS:
-1. [actionable suggestion]
-2. [another suggestion]
-3. [another suggestion]
+- [actionable suggestion]
+- [another suggestion]
+- [another suggestion]
 
 ⚡ IMPROVEMENTS:
 - [specific improvement]
@@ -636,13 +640,20 @@ Be specific, reference line numbers when possible. For DEEP mode: be very thorou
       body: JSON.stringify({
         model: 'claude-sonnet-4-20250514',
         max_tokens: 2000,
+        temperature: 0.7,
+        top_p: 0.9,
+        stop_sequences: ['[ CODE REVIEW END ]'],
         system: systemPrompt,
         messages: [{ role: 'user', content: userMsg }]
       })
     });
 
     const data = await res.json();
-    const text = (data.content || []).map(b => b.text || '').join('');
+    let text = (data.content || []).map(b => b.text || '').join('');
+    // Append the stop sequence back so the output looks complete
+    if (!text.includes('[ CODE REVIEW END ]')) text += '\n[ CODE REVIEW END ]';
+    // Safety: deduplicate any repeated section headers
+    text = deduplicateSections(text);
     currentOutput = text;
 
     const detectedLang = lang === 'auto' ? detectLangFromCode(code) : lang;

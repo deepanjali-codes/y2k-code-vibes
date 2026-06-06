@@ -9,6 +9,7 @@ import { ReviewRecord } from "./History";
 import { processFiles, processImageOCR } from "@/lib/fileProcessor";
 import { FileCode, FolderOpen, Image, Upload, Download, Copy, Check, RotateCcw, X, Square } from "lucide-react";
 import { saveAs } from "file-saver";
+import { parseAlternativeSolutions } from "@/lib/utils";
 
 const LANGUAGES: SupportedLanguage[] = [
   "javascript","typescript","python","java","c","cpp","go","rust","php",
@@ -50,6 +51,9 @@ export default function ReviewPage() {
   const [dragOver, setDragOver] = useState(false);
   const [processing, setProcessing] = useState(false);
   const abortRef = useRef<AbortController | null>(null);
+
+  const [activeAltTab, setActiveAltTab] = useState<number>(0);
+  const [altCopied, setAltCopied] = useState(false);
 
   // AI provider state (auto-detected)
   const [provider, setProvider] = useState<AIProvider>("gemini");
@@ -142,6 +146,7 @@ export default function ReviewPage() {
     setCode("");
     setReview("");
     setScore(null);
+    setActiveAltTab(0);
   }, []);
 
   const handleCopy = async () => {
@@ -149,6 +154,20 @@ export default function ReviewPage() {
     catch { const el = document.createElement("textarea"); el.value = review; document.body.appendChild(el); el.select(); document.execCommand("copy"); document.body.removeChild(el); }
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
+  };
+
+  const handleCopyAlt = async (text: string) => {
+    try { await navigator.clipboard.writeText(text); }
+    catch {
+      const el = document.createElement("textarea");
+      el.value = text;
+      document.body.appendChild(el);
+      el.select();
+      document.execCommand("copy");
+      document.body.removeChild(el);
+    }
+    setAltCopied(true);
+    setTimeout(() => setAltCopied(false), 2000);
   };
 
   const handleDownloadTxt = () => {
@@ -340,12 +359,77 @@ export default function ReviewPage() {
               </div>
             )}
 
-            {review && (
-              <pre className="font-mono text-xs leading-relaxed whitespace-pre-wrap overflow-auto max-h-[500px]">
-                {colorizeReview(review)}
-                {isLoading && <span className="animate-blink text-primary">▊</span>}
-              </pre>
-            )}
+            {review && (() => {
+              const parsed = parseAlternativeSolutions(review);
+              return (
+                <div className="space-y-4">
+                  <pre className="font-mono text-xs leading-relaxed whitespace-pre-wrap overflow-auto max-h-[500px]">
+                    {colorizeReview(parsed.mainReview)}
+                    {isLoading && !parsed.hasAlternatives && <span className="animate-blink text-primary">▊</span>}
+                  </pre>
+
+                  {parsed.hasAlternatives && parsed.alternatives.length > 0 && (
+                    <div className="terminal-window border-hero-blue/40 mt-4">
+                      <div className="terminal-titlebar bg-hero-blue/10 flex items-center justify-between">
+                        <div className="flex items-center gap-1.5">
+                          <div className="w-2.5 h-2.5 rounded-full bg-hero-blue animate-pulse" />
+                          <span className="font-mono text-xs text-hero-blue font-bold ml-1">
+                            ✨ GLOW-UP & ALTERNATIVES
+                          </span>
+                        </div>
+                        <span className="font-mono text-[10px] bg-hero-blue/15 text-hero-blue px-2 py-0.5 rounded uppercase font-semibold">
+                          {detectedLang}
+                        </span>
+                      </div>
+
+                      <div className="flex border-b border-border bg-muted/20">
+                        {parsed.alternatives.map((alt, idx) => (
+                          <button
+                            key={idx}
+                            onClick={() => setActiveAltTab(idx)}
+                            className={`px-4 py-2 font-mono text-xs border-r border-border transition-colors cursor-pointer ${
+                              activeAltTab === idx
+                                ? "bg-background text-hero-blue font-bold border-b-2 border-b-hero-blue"
+                                : "text-muted-foreground hover:text-foreground hover:bg-muted/10"
+                            }`}
+                          >
+                            [ {alt.title.toLowerCase()} ]
+                          </button>
+                        ))}
+                      </div>
+
+                      <div className="p-4 relative">
+                        {parsed.alternatives[activeAltTab] ? (
+                          <>
+                            <div className="absolute top-3 right-3 z-10">
+                              <button
+                                onClick={() => handleCopyAlt(parsed.alternatives[activeAltTab].code)}
+                                className="flex items-center gap-1 px-2.5 py-1 rounded border border-border bg-background font-mono text-[10px] text-foreground hover:bg-muted transition-colors cursor-pointer"
+                              >
+                                {altCopied ? (
+                                  <Check className="h-3.5 w-3.5 text-hero-green" />
+                                ) : (
+                                  <Copy className="h-3.5 w-3.5" />
+                                )}
+                                {altCopied ? "copied!" : "copy code"}
+                              </button>
+                            </div>
+
+                            <pre className="font-mono text-xs leading-relaxed overflow-auto max-h-[350px] p-3 bg-black/35 rounded border border-white/5 whitespace-pre">
+                              {parsed.alternatives[activeAltTab].code}
+                            </pre>
+                          </>
+                        ) : (
+                          <span className="font-mono text-xs text-muted-foreground animate-pulse">
+                            generating alternate solution...
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              );
+            })()}
           </div>
 
           {/* ── Copy / Download / Actions bar — visible whenever review text exists ── */}

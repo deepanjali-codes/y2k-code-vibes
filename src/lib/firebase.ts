@@ -1,8 +1,8 @@
 // Firebase app + services initializer
 // Config is read from Vite env vars — set them in your .env file.
-import { initializeApp, getApps, getApp } from "firebase/app";
-import { getFirestore } from "firebase/firestore";
-import { getAuth } from "firebase/auth";
+import { initializeApp, getApps, getApp, type FirebaseApp } from "firebase/app";
+import { getFirestore, type Firestore } from "firebase/firestore";
+import { getAuth, type Auth } from "firebase/auth";
 
 const firebaseConfig = {
   apiKey:            import.meta.env.VITE_FIREBASE_API_KEY,
@@ -21,16 +21,24 @@ const missingKeys = Object.entries(firebaseConfig)
 if (missingKeys.length > 0) {
   console.warn(
     `[Codelens] Missing Firebase env vars: ${missingKeys.join(", ")}\n` +
-    "Set them in your .env file (see .env.example).\n" +
-    "History features will not work without them."
+    "Set them in your .env file in the project root.\n" +
+    "Auth and history features will not work without them."
   );
 }
 
 // Avoid duplicate app initialization during HMR
-const app = getApps().length ? getApp() : initializeApp(firebaseConfig);
+// Wrapped in try/catch so a bad config doesn't white-screen the app
+let app: FirebaseApp;
+try {
+  app = getApps().length ? getApp() : initializeApp(firebaseConfig);
+} catch (err) {
+  console.error("[Codelens] Firebase initialization failed:", err);
+  // Create a minimal app so getAuth/getFirestore don't throw on import
+  // The auth listener timeout in useAuth will handle the fallback
+  app = initializeApp({ apiKey: "dummy", projectId: "dummy", appId: "dummy" }, "__fallback__");
+}
 
-
-export const db   = getFirestore(app);
-export const auth = getAuth(app);
+export const db: Firestore = getFirestore(app);
+export const auth: Auth = getAuth(app);
 export default app;
  

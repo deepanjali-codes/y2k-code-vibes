@@ -21,7 +21,7 @@ export function TerminalHeader() {
     <header className="bg-navbar sticky top-0 z-50 border-b border-white/10">
       <div className="max-w-5xl mx-auto px-4 h-12 flex items-center justify-between">
         {/* Logo */}
-        <Link to={user ? "/app" : "/"} className="flex items-center gap-2">
+        <Link to="/" className="flex items-center gap-2">
           <span className="text-hero-blue font-mono font-bold text-sm">&gt;_</span>
           <span className="font-mono text-sm font-bold text-white tracking-wide">
             codelens_v1.0

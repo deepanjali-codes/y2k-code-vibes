@@ -110,10 +110,7 @@ export default function LandingPage() {
   const { user } = useAuth();
   const navigate = useNavigate();
 
-  // If already logged in, redirect to reviewer
-  useEffect(() => {
-    if (user) navigate("/app");
-  }, [user, navigate]);
+  // Custom CTA buttons for authenticated user
 
   return (
     <div className="min-h-screen bg-background">
@@ -137,14 +134,29 @@ export default function LandingPage() {
           brutal score, and a vibe check that doesn't sugarcoat.
         </p>
         <div className="flex flex-wrap gap-3">
-          <Link to="/signup">
-            <button className="btn-primary flex items-center gap-2">
-              start review session <span>→</span>
-            </button>
-          </Link>
-          <Link to="/login">
-            <button className="btn-outline">login</button>
-          </Link>
+          {user ? (
+            <>
+              <Link to="/app">
+                <button className="btn-primary flex items-center gap-2">
+                  go to console <span>→</span>
+                </button>
+              </Link>
+              <Link to="/history">
+                <button className="btn-outline">view history</button>
+              </Link>
+            </>
+          ) : (
+            <>
+              <Link to="/signup">
+                <button className="btn-primary flex items-center gap-2">
+                  start review session <span>→</span>
+                </button>
+              </Link>
+              <Link to="/login">
+                <button className="btn-outline">login</button>
+              </Link>
+            </>
+          )}
         </div>
       </section>
 

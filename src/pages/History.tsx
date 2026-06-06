@@ -5,6 +5,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { TerminalHeader } from "@/components/TerminalHeader";
 import { Trash2, RotateCcw, Download, Eye, Inbox, Copy, Check } from "lucide-react";
 import { saveAs } from "file-saver";
+import { parseAlternativeSolutions } from "@/lib/utils";
 
 export interface ReviewRecord {
   id: string;
@@ -42,6 +43,12 @@ export default function HistoryPage() {
   const [loading, setLoading]   = useState(true);
   const [selected, setSelected] = useState<ReviewRecord | null>(null);
   const [copied, setCopied] = useState(false);
+  const [activeAltTab, setActiveAltTab] = useState<number>(0);
+  const [altCopied, setAltCopied] = useState(false);
+
+  useEffect(() => {
+    setActiveAltTab(0);
+  }, [selected]);
 
   useEffect(() => {
     const loadHistory = async () => {
@@ -76,6 +83,20 @@ export default function HistoryPage() {
     if (!w) return;
     w.document.write(`<html><head><title>Code Review</title><style>body{font-family:monospace;white-space:pre-wrap;padding:2rem;font-size:12px;line-height:1.6;}</style></head><body>${r.review.replace(/</g,"&lt;").replace(/>/g,"&gt;")}</body></html>`);
     w.document.close(); w.print();
+  };
+
+  const handleCopyAlt = async (text: string) => {
+    try { await navigator.clipboard.writeText(text); }
+    catch {
+      const el = document.createElement("textarea");
+      el.value = text;
+      document.body.appendChild(el);
+      el.select();
+      document.execCommand("copy");
+      document.body.removeChild(el);
+    }
+    setAltCopied(true);
+    setTimeout(() => setAltCopied(false), 2000);
   };
 
   return (
@@ -216,9 +237,72 @@ export default function HistoryPage() {
                   </div>
                 ) : (
                   <>
-                    <pre className="font-mono text-xs leading-relaxed whitespace-pre-wrap overflow-auto max-h-[500px]">
-                      {colorizeReview(selected.review)}
-                    </pre>
+                    {(() => {
+                      const parsed = parseAlternativeSolutions(selected.review);
+                      return (
+                        <div className="space-y-4">
+                          <pre className="font-mono text-xs leading-relaxed whitespace-pre-wrap overflow-auto max-h-[500px]">
+                            {colorizeReview(parsed.mainReview)}
+                          </pre>
+
+                          {parsed.hasAlternatives && parsed.alternatives.length > 0 && (
+                            <div className="terminal-window border-hero-blue/40 mt-4">
+                              <div className="terminal-titlebar bg-hero-blue/10 flex items-center justify-between">
+                                <div className="flex items-center gap-1.5">
+                                  <div className="w-2.5 h-2.5 rounded-full bg-hero-blue animate-pulse" />
+                                  <span className="font-mono text-xs text-hero-blue font-bold ml-1">
+                                    ✨ GLOW-UP & ALTERNATIVES
+                                  </span>
+                                </div>
+                                <span className="font-mono text-[10px] bg-hero-blue/15 text-hero-blue px-2 py-0.5 rounded uppercase font-semibold">
+                                  {selected.language}
+                                </span>
+                              </div>
+
+                              <div className="flex border-b border-border bg-muted/20">
+                                {parsed.alternatives.map((alt, idx) => (
+                                  <button
+                                    key={idx}
+                                    onClick={() => setActiveAltTab(idx)}
+                                    className={`px-4 py-2 font-mono text-xs border-r border-border transition-colors cursor-pointer ${
+                                      activeAltTab === idx
+                                        ? "bg-background text-hero-blue font-bold border-b-2 border-b-hero-blue"
+                                        : "text-muted-foreground hover:text-foreground hover:bg-muted/10"
+                                    }`}
+                                  >
+                                    [ {alt.title.toLowerCase()} ]
+                                  </button>
+                                ))}
+                              </div>
+
+                              <div className="p-4 relative">
+                                {parsed.alternatives[activeAltTab] && (
+                                  <>
+                                    <div className="absolute top-3 right-3 z-10">
+                                      <button
+                                        onClick={() => handleCopyAlt(parsed.alternatives[activeAltTab].code)}
+                                        className="flex items-center gap-1 px-2.5 py-1 rounded border border-border bg-background font-mono text-[10px] text-foreground hover:bg-muted transition-colors cursor-pointer"
+                                      >
+                                        {altCopied ? (
+                                          <Check className="h-3.5 w-3.5 text-hero-green" />
+                                        ) : (
+                                          <Copy className="h-3.5 w-3.5" />
+                                        )}
+                                        {altCopied ? "copied!" : "copy code"}
+                                      </button>
+                                    </div>
+
+                                    <pre className="font-mono text-xs leading-relaxed overflow-auto max-h-[350px] p-3 bg-black/35 rounded border border-white/5 whitespace-pre">
+                                      {parsed.alternatives[activeAltTab].code}
+                                    </pre>
+                                  </>
+                                )}
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })()}
 
                     {/* Bottom actions */}
                     <div className="border-t border-border mt-4 pt-3 flex flex-wrap items-center gap-2">
