@@ -134,7 +134,7 @@ export default function ReviewPage() {
       abortRef.current = null;
       setIsLoading(false);
     }
-  }, [code, language, provider, model, tab]);
+  }, [code, language, provider, model, tab, user]);
 
   const handleStop = useCallback(() => {
     abortRef.current?.abort();
