@@ -1,4 +1,4 @@
-# 🤖 AI Code Reviewer
+# 🤖 Codelens
 
 An automated code review assistant designed to analyze Pull Requests (PRs), flag bugs, ensure style guide adherence, and provide actionable optimization feedback before human review.
 
